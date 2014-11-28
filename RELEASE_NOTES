@@ -23,6 +23,15 @@ New user-visible features
 -------------------------
 - It is now possible to print the Neighbor Cache (ARP and NDISC) by using
   the RoutingProtocolHelper
+- In previous releases of the LTE module, the bearer release
+  functionality was only partially supported. As an enhancement, a
+  complete release bearer procedure is now implemented, which can be
+  invoked by calling the new helper method
+  LteHelper::DeActivateDedicatedEpsBearer(). The related output can be
+  seen through the stats collected at different layers like PDCP, RLC,
+  MAC, PHY. To support this implementation, example and test suite is
+  added within the LTE module examples and tests folder.  
+
 
 Bugs fixed
 ----------
