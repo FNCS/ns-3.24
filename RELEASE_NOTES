@@ -27,6 +27,15 @@ New user-visible features
   i.e., it's not anymore needed to instantiate an helper just to use them.
 - A new TimeProbe class has been added to hook the data collection framework
   to traced values emitting Time objects
+- In previous releases of the LTE module, the bearer release
+  functionality was only partially supported. As an enhancement, a
+  complete release bearer procedure is now implemented, which can be
+  invoked by calling the new helper method
+  LteHelper::DeActivateDedicatedEpsBearer(). The related output can be
+  seen through the stats collected at different layers like PDCP, RLC,
+  MAC, PHY. To support this implementation, example and test suite is
+  added within the LTE module examples and tests folder.  
+
 
 Bugs fixed
 ----------
