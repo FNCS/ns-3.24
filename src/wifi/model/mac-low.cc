@@ -1662,7 +1662,7 @@ MacLow::ForwardDown (Ptr<const Packet> packet, const WifiMacHeader* hdr,
             }
           preamble = WIFI_PREAMBLE_NONE;
         }
-      m_mpduReferenceNumber = ((m_mpduReferenceNumber + 1) % 4294967296);
+      m_mpduReferenceNumber += 1;  // this variable is allowed to overflow
     }
 }
 
