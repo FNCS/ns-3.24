@@ -297,7 +297,11 @@ FncsApplication::HandleRead (Ptr<Socket> socket)
       }
       std::string topic = sdata.substr(0, split);
       std::string value = sdata.substr(split+1);
+#ifdef FNCS
       fncs::publish(topic, value);
+#else
+      NS_FATAL_ERROR ("Can't use fncs simulator without FNCS compiled in");
+#endif
     }
 }
 

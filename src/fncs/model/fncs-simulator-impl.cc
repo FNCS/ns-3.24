@@ -315,7 +315,11 @@ FncsSimulatorImpl::Stop (void)
 {
   NS_LOG_FUNCTION (this);
 
+#ifdef FNCS
   fncs::finalize();
+#else
+  NS_FATAL_ERROR ("Can't use fncs simulator without FNCS compiled in");
+#endif
 
   m_globalFinished = true;
 

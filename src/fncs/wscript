@@ -172,7 +172,7 @@ def build(bld):
     if 'fncs' in bld.env['MODULES_NOT_BUILT']:
         return
 
-    module = bld.create_ns3_module('fncs', ['core'])
+    module = bld.create_ns3_module('fncs', ['core', 'applications'])
     module.source = [
         'model/fncs-simulator-impl.cc',
         ]
