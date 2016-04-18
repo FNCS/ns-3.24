@@ -26,10 +26,12 @@
 #include "ns3/socket-factory.h"
 #include "ns3/packet.h"
 #include "ns3/uinteger.h"
+#include "ns3/double.h"
 #include "ns3/trace-source-accessor.h"
 #include "ns3/names.h"
 #include "ns3/string.h"
 #include "fncs-application.h"
+#include "ns3/random-variable-stream.h"
 
 #ifdef FNCS
 #include <fncs.hpp>
@@ -71,6 +73,16 @@ FncsApplication::GetTypeId (void)
                    UintegerValue (0),
                    MakeUintegerAccessor (&FncsApplication::m_localPort),
                    MakeUintegerChecker<uint16_t> ())
+    .AddAttribute ("JitterMinNs",
+                   "The source port of the outbound packets",
+                   DoubleValue  (1000),
+                   MakeDoubleAccessor (&FncsApplication::m_jitterMinNs),
+                   MakeDoubleChecker<double> ())
+    .AddAttribute ("JitterMaxNs",
+                   "The source port of the outbound packets",
+                   DoubleValue (100000),
+                   MakeDoubleAccessor (&FncsApplication::m_jitterMaxNs),
+                   MakeDoubleChecker<double> ())
     .AddTraceSource ("Tx", "A new packet is created and is sent",
                      MakeTraceSourceAccessor (&FncsApplication::m_txTrace),
                      "ns3::Packet::TracedCallback")
@@ -83,6 +95,11 @@ FncsApplication::FncsApplication ()
   NS_LOG_FUNCTION (this);
   m_sent = 0;
   m_socket = 0;
+  
+  //Setting up jitter random variable stream
+  m_rand_delay_ns = CreateObject<UniformRandomVariable> ();
+  m_rand_delay_ns->SetAttribute ("Min", DoubleValue  (m_jitterMinNs));
+  m_rand_delay_ns->SetAttribute ("Max", DoubleValue  (m_jitterMaxNs));
 }
 
 FncsApplication::~FncsApplication()
@@ -189,7 +206,7 @@ void
 FncsApplication::Send (Ptr<FncsApplication> to, std::string topic, std::string value)
 {
   NS_LOG_FUNCTION (this << to << topic << value);
-
+ 
   Ptr<Packet> p;
 
   // Convert given value into a Packet.
@@ -208,13 +225,16 @@ FncsApplication::Send (Ptr<FncsApplication> to, std::string topic, std::string v
   // call to the trace sinks before the packet is actually sent,
   // so that tags added to the packet can be sent as well
   m_txTrace (p);
-
+  
+  int delay_ns = (int) (m_rand_delay_ns->GetValue (m_jitterMinNs,m_jitterMaxNs) + 0.5);
+  std::cout << "Current time " << Simulator::Now ().GetNanoSeconds () << std::endl;
+  std::cout << "delay time " << delay_ns << std::endl;
   if (Ipv4Address::IsMatchingType (m_localAddress))
     {
       InetSocketAddress address = to->GetLocalInet();
-      NS_LOG_INFO ("At time "
-          << Simulator::Now ().GetSeconds ()
-          << "s '"
+      NS_LOG_INFO ("At time '"
+          << Simulator::Now ().GetNanoSeconds () + delay_ns
+          << "'ns '"
           << m_name
           << "' sent "
           << total_size
@@ -223,15 +243,24 @@ FncsApplication::Send (Ptr<FncsApplication> to, std::string topic, std::string v
           << "' at address "
           << address.GetIpv4()
           << " port "
-          << address.GetPort());
-      m_socket->SendTo(p, 0, address);
+          << address.GetPort()
+		  << " topic '"
+          << topic
+		  << "' value '"
+          << value 
+		  << "' uid '"
+		  << p->GetUid () <<"'");
+      //m_socket->SendTo(p, 0, address);
+      //Simulator::Schedule(NanoSeconds (delay_ns), &Socket::SendTo, m_socket, buffer_ptr, p->GetSize(), 0, address); //non-virtual method
+      int (Socket::*fp)(Ptr<Packet>, uint32_t, const Address&) = &Socket::SendTo;
+      Simulator::Schedule(NanoSeconds (delay_ns), fp, m_socket, p, 0, address); //virtual method
     }
   else if (Ipv6Address::IsMatchingType (m_localAddress))
     {
       Inet6SocketAddress address = to->GetLocalInet6();
-      NS_LOG_INFO ("At time "
-          << Simulator::Now ().GetSeconds ()
-          << "s '"
+      NS_LOG_INFO ("At time '"
+          << Simulator::Now ().GetNanoSeconds () + delay_ns
+          << "'ns '"
           << m_name
           << "' sent "
           << total_size
@@ -240,10 +269,18 @@ FncsApplication::Send (Ptr<FncsApplication> to, std::string topic, std::string v
           << "' at address "
           << address.GetIpv6()
           << " port "
-          << address.GetPort());
-      m_socket->SendTo(p, 0, address);
+          << address.GetPort()
+		  << " topic '"
+          << topic
+		  << "' value '"
+          << value 
+		  << "' uid '"
+		  << p->GetUid () <<"'");
+      //m_socket->SendTo(p, 0, address);
+      //Simulator::Schedule(NanoSeconds (delay_ns), &Socket::SendTo, m_socket, buffer_ptr, p->GetSize(), 0, address); //non-virtual method
+      int (Socket::*fp)(Ptr<Packet>, uint32_t, const Address&) = &Socket::SendTo;
+      Simulator::Schedule(NanoSeconds (delay_ns), fp, m_socket, p, 0, address); //virtual method
     }
-
   ++m_sent;
 }
 
@@ -266,29 +303,7 @@ FncsApplication::HandleRead (Ptr<Socket> socket)
   while ((packet = socket->RecvFrom (from)))
     {
       uint32_t size = packet->GetSize();
-      if (InetSocketAddress::IsMatchingType (from))
-        {
-          NS_LOG_INFO ("At time "
-                  << Simulator::Now ().GetSeconds ()
-                  << "s received "
-                  << size
-                  << " bytes from "
-                  << InetSocketAddress::ConvertFrom (from).GetIpv4 ()
-                  << " port "
-                  << InetSocketAddress::ConvertFrom (from).GetPort ());
-        }
-      else if (Inet6SocketAddress::IsMatchingType (from))
-        {
-          NS_LOG_INFO ("At time "
-                  << Simulator::Now ().GetSeconds ()
-                  << "s received "
-                  << size
-                  << " bytes from "
-                  << Inet6SocketAddress::ConvertFrom (from).GetIpv6 ()
-                  << " port "
-                  << Inet6SocketAddress::ConvertFrom (from).GetPort ());
-        }
-      std::ostringstream odata;
+	  std::ostringstream odata;
       packet->CopyData (&odata, size);
       std::string sdata = odata.str();
       size_t split = sdata.find('=', 0);
@@ -297,11 +312,45 @@ FncsApplication::HandleRead (Ptr<Socket> socket)
       }
       std::string topic = sdata.substr(0, split);
       std::string value = sdata.substr(split+1);
-#ifdef FNCS
+      if (InetSocketAddress::IsMatchingType (from))
+        {
+          NS_LOG_INFO ("At time '"
+		          << Simulator::Now ().GetNanoSeconds ()
+				  << "'ns '"
+				  << m_name
+                  << "' received "
+                  << size
+                  << " bytes at address "
+                  << InetSocketAddress::ConvertFrom (from).GetIpv4 ()
+                  << " port "
+                  << InetSocketAddress::ConvertFrom (from).GetPort ()
+				  << " topic '"
+				  << topic
+				  << "' value '"
+				  << value
+				  << "' uid '"
+		          << packet->GetUid () <<"'");
+        }
+      else if (Inet6SocketAddress::IsMatchingType (from))
+        {
+          NS_LOG_INFO ("At time '"
+		          << Simulator::Now ().GetNanoSeconds ()
+				  << "'ns '"
+				  << m_name
+                  << "' received "
+                  << size
+                  << " bytes at address "
+                  << Inet6SocketAddress::ConvertFrom (from).GetIpv6 ()
+                  << " port "
+                  << Inet6SocketAddress::ConvertFrom (from).GetPort ()
+				  << " topic '"
+				  << topic
+				  << "' value '"
+				  << value
+				  << "' uid '"
+		          << packet->GetUid () <<"'");
+        }
       fncs::publish(topic, value);
-#else
-      NS_FATAL_ERROR ("Can't use fncs simulator without FNCS compiled in");
-#endif
     }
 }
 

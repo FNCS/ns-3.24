@@ -87,6 +87,10 @@ int main (int argc, char *argv[])
   // Fncs simulation setup
   Ptr<FncsSimulatorImpl> sim = CreateObject<FncsSimulatorImpl> ();
   Simulator::SetImplementation(sim);
+  
+  //Define jitter parameters to simulate lack of total synchronicity in all objects
+  Config::SetDefault ("ns3::FncsApplication::JitterMinNs", DoubleValue (10));
+  Config::SetDefault ("ns3::FncsApplication::JitterMaxNs", DoubleValue (100));
 
   MyModel model;
   Ptr<UniformRandomVariable> v = CreateObject<UniformRandomVariable> ();
