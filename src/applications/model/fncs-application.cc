@@ -15,6 +15,10 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
+#include <iostream>
+#include <fstream>
+#include <vector>
+using namespace std;
 #include "ns3/log.h"
 #include "ns3/ipv4-address.h"
 #include "ns3/ipv6-address.h"
@@ -86,6 +90,11 @@ FncsApplication::GetTypeId (void)
     .AddTraceSource ("Tx", "A new packet is created and is sent",
                      MakeTraceSourceAccessor (&FncsApplication::m_txTrace),
                      "ns3::Packet::TracedCallback")
+    .AddAttribute ("OutFileName", 
+                   "The name of the output file",
+                   StringValue (),
+                   MakeStringAccessor (&FncsApplication::f_name),
+                   MakeStringChecker ())
   ;
   return tid;
 }
@@ -181,6 +190,11 @@ FncsApplication::StartApplication (void)
   if (m_name.empty()) {
     NS_FATAL_ERROR("FncsApplication is missing name");
   }
+
+  if (f_name.empty())
+  {
+    NS_LOG_INFO("FncsApplication is missing an output file in CSV format.");
+  }
 }
 
 void 
@@ -200,6 +214,43 @@ static uint8_t
 char_to_uint8_t (char c)
 {
   return uint8_t(c);
+}
+
+// break long topic of structure simname/from@to/topic into its component parts
+static std::vector<std::string> splitTopic(std::string topic)
+{
+  std::vector<std::string> retval;
+ 
+  std::size_t found1 = topic.find_first_of('/');
+  std::size_t found2 = topic.find_first_of('/', found1 + 1);
+  retval.push_back(topic.substr(0, found1)); // Simulator name
+  std::string fromTo = topic.substr(found1 + 1, found2 - found1 - 1); // Source@Destination = SourceLevel_SourceID @ DestinationLevel_DestinationID
+  std::size_t found3 = fromTo.find('@');
+  // analyzing the source string
+  std::string source = fromTo.substr(0, found3); // SourceLevel_SourceID
+  std::size_t found4 = source.find_last_of('_');
+  std::string sourceLevel = source.substr(0, found4); // Sourcelevel
+  std::size_t found5 = sourceLevel.find("Aggregator");
+  if (found5 == std::string::npos)
+  {
+    sourceLevel = "House";
+  }
+  retval.push_back(sourceLevel);
+  retval.push_back(source.substr(found4 + 1, std::string::npos)); // SourceID
+  // analyzing the destination string
+  std::string destination = fromTo.substr(found3 + 1, std::string::npos); // DestinationLevel_DestinationID
+  std::size_t found6 = destination.find_last_of('_');
+  std::string destLevel = destination.substr(0, found6); // Destinationlevel
+  std::size_t found7 = destLevel.find("Aggregator");
+  if (found7 == std::string::npos)
+  {
+    destLevel = "House";
+  }
+  retval.push_back(destLevel);
+  retval.push_back(destination.substr(found6 + 1, std::string::npos));
+  retval.push_back(topic.substr(found2 + 1, std::string::npos)); // small topic name
+  
+  return retval;
 }
 
 void 
@@ -227,11 +278,29 @@ FncsApplication::Send (Ptr<FncsApplication> to, std::string topic, std::string v
   m_txTrace (p);
   
   int delay_ns = (int) (m_rand_delay_ns->GetValue (m_jitterMinNs,m_jitterMaxNs) + 0.5);
-  std::cout << "Current time " << Simulator::Now ().GetNanoSeconds () << std::endl;
-  std::cout << "delay time " << delay_ns << std::endl;
+
   if (Ipv4Address::IsMatchingType (m_localAddress))
     {
       InetSocketAddress address = to->GetLocalInet();
+      if (~f_name.empty())
+      {
+        std::vector<std::string> topicParts = splitTopic(topic);
+        std::ofstream outFile(f_name.c_str(), ios::app);
+        outFile << Simulator::Now ().GetNanoSeconds ()  << ","
+                << p->GetUid () << ","
+                << "s,"
+                << total_size << ","
+                << topicParts[0] << ","
+                << topicParts[1] << ","
+                << topicParts[2] << ","
+                << topicParts[3] << ","
+                << topicParts[4] << ","
+                << address.GetIpv4() << ","
+                << address.GetPort() << ","
+                << topicParts[5] << ","
+                << value << endl;
+        outFile.close();
+      }
       NS_LOG_INFO ("At time '"
           << Simulator::Now ().GetNanoSeconds () + delay_ns
           << "'ns '"
@@ -258,6 +327,25 @@ FncsApplication::Send (Ptr<FncsApplication> to, std::string topic, std::string v
   else if (Ipv6Address::IsMatchingType (m_localAddress))
     {
       Inet6SocketAddress address = to->GetLocalInet6();
+      if (~f_name.empty())
+      {
+        std::vector<std::string> topicParts = splitTopic(topic);
+        std::ofstream outFile(f_name.c_str(), ios::app);
+        outFile << Simulator::Now ().GetNanoSeconds ()  << ","
+                << p->GetUid () << ","
+                << "s,"
+                << total_size << ","
+                << topicParts[0] << ","
+                << topicParts[1] << ","
+                << topicParts[2] << ","
+                << topicParts[3] << ","
+                << topicParts[4] << ","
+                << address.GetIpv6() << ","
+                << address.GetPort() << ","
+                << topicParts[5] << ","
+                << value << endl;
+        outFile.close();
+      }
       NS_LOG_INFO ("At time '"
           << Simulator::Now ().GetNanoSeconds () + delay_ns
           << "'ns '"
@@ -314,6 +402,25 @@ FncsApplication::HandleRead (Ptr<Socket> socket)
       std::string value = sdata.substr(split+1);
       if (InetSocketAddress::IsMatchingType (from))
         {
+          if (~f_name.empty())
+          {
+            std::vector<std::string> topicParts = splitTopic(topic);
+            std::ofstream outFile(f_name.c_str(), ios::app);
+            outFile << Simulator::Now ().GetNanoSeconds ()  << ","
+                    << packet->GetUid () << ","
+                    << "r,"
+                    << size << ","
+                    << topicParts[0] << ","
+                    << topicParts[1] << ","
+                    << topicParts[2] << ","
+                    << topicParts[3] << ","
+                    << topicParts[4] << ","
+                    << InetSocketAddress::ConvertFrom (from).GetIpv4 () << ","
+                    << InetSocketAddress::ConvertFrom (from).GetPort () << ","
+                    << topicParts[5] << ","
+                    << value << endl;
+            outFile.close();
+          }
           NS_LOG_INFO ("At time '"
 		          << Simulator::Now ().GetNanoSeconds ()
 				  << "'ns '"
@@ -333,6 +440,25 @@ FncsApplication::HandleRead (Ptr<Socket> socket)
         }
       else if (Inet6SocketAddress::IsMatchingType (from))
         {
+          if (~f_name.empty())
+          {
+            std::vector<std::string> topicParts = splitTopic(topic);
+            std::ofstream outFile(f_name.c_str(), ios::app);
+            outFile << Simulator::Now ().GetNanoSeconds ()  << ","
+                    << packet->GetUid () << ","
+                    << "r,"
+                    << size << ","
+                    << topicParts[0] << ","
+                    << topicParts[1] << ","
+                    << topicParts[2] << ","
+                    << topicParts[3] << ","
+                    << topicParts[4] << ","
+                    << Inet6SocketAddress::ConvertFrom (from).GetIpv6 () << ","
+                    << Inet6SocketAddress::ConvertFrom (from).GetPort () << ","
+                    << topicParts[5] << ","
+                    << value << endl;
+            outFile.close();
+          }
           NS_LOG_INFO ("At time '"
 		          << Simulator::Now ().GetNanoSeconds ()
 				  << "'ns '"

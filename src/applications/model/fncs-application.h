@@ -117,9 +117,10 @@ private:
   Ptr<Socket> m_socket; //!< Socket
   Address m_localAddress; //!< Local address
   uint16_t m_localPort; //!< Local port
-  Ptr<UniformRandomVariable> m_rand_delay_ns; //random value used to add jitter to packet transmission
-  double m_jitterMinNs; //minimum jitter delay time for packets sent via FNCS
-  double m_jitterMaxNs; //maximum jitter delay time for packets sent via FNCS
+  Ptr<UniformRandomVariable> m_rand_delay_ns; //!<random value used to add jitter to packet transmission
+  double m_jitterMinNs; //!<minimum jitter delay time for packets sent via FNCS
+  double m_jitterMaxNs; //!<maximum jitter delay time for packets sent via FNCS
+  std::string f_name; //!< name of the output file
 
   /// Callbacks for tracing the packet Tx events
   TracedCallback<Ptr<const Packet> > m_txTrace;
